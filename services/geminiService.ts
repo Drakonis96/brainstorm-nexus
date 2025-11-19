@@ -69,7 +69,7 @@ const generateImageForCategory = async (category: string, retries = 2): Promise<
   return undefined;
 };
 
-export const groupWordsWithGemini = async (words: string[], groupCount: number): Promise<GroupedResult[]> => {
+export const groupWordsWithGemini = async (words: string[], groupCount: number, generateImages: boolean = false): Promise<GroupedResult[]> => {
   try {
     const response = await fetch(`${API_BASE_URL}/group-words`, {
       method: 'POST',
@@ -87,6 +87,13 @@ export const groupWordsWithGemini = async (words: string[], groupCount: number):
     const groups = data.groups;
 
     console.log('Groups received from backend:', groups);
+    
+    // If image generation is disabled, return groups without images
+    if (!generateImages) {
+      console.log('Image generation disabled, returning groups without images');
+      return groups.map((group: GroupedResult) => ({ ...group, imageUrl: undefined }));
+    }
+
     console.log('Starting image generation for', groups.length, 'groups');
 
     // Generate images SEQUENTIALLY to avoid rate limits and ensure completion

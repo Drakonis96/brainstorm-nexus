@@ -171,60 +171,35 @@ export const registerUser = async (username: string, password: string): Promise<
 };
 
 export const loginUser = async (username: string, password: string): Promise<{ success: boolean; message: string }> => {
-  const cleanUser = username.trim().toLowerCase();
-
-  // Strict check: Only 'admin' is allowed
-  if (cleanUser === 'admin') {
-    try {
-      const inputHash = await hashPassword(password);
-      const expectedHash = await getAdminPasswordHash();
-
-      if (inputHash === expectedHash) {
-        return { success: true, message: 'Login successful.' };
-      } else {
-        return { success: false, message: 'Incorrect password.' };
-      }
-    } catch (error) {
-      console.error("Hashing error", error);
-      return { success: false, message: 'Security error during login.' };
-    }
+  try {
+    const response = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error during login:', error);
+    return { success: false, message: 'Network error during login.' };
   }
-
-  // All other users are blocked
-  return { success: false, message: 'Only admin access is currently enabled.' };
 };
 
 export const changeUserPassword = async (username: string, oldPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
-  const cleanUser = username.trim().toLowerCase();
-
-  if (cleanUser === 'admin') {
-    try {
-      // Verify old password
-      const oldHash = await hashPassword(oldPassword);
-      const currentHash = await getAdminPasswordHash();
-
-      if (oldHash !== currentHash) {
-        return { success: false, message: 'Current password is incorrect.' };
-      }
-
-      // Validate new password
-      if (!newPassword || newPassword.length < 6) {
-        return { success: false, message: 'New password must be at least 6 characters long.' };
-      }
-
-      // Set new password
-      const newHash = await hashPassword(newPassword);
-      localStorage.setItem(ADMIN_KEY, newHash);
-      
-      return { success: true, message: 'Password changed successfully.' };
-    } catch (error) {
-      console.error("Error changing password", error);
-      return { success: false, message: 'Error changing password.' };
-    }
+  try {
+    const response = await fetch(`${API_BASE}/auth/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, oldPassword, newPassword }),
+    });
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error changing password:', error);
+    return { success: false, message: 'Network error changing password.' };
   }
-
-  // All other users are blocked
-  return { success: false, message: 'Only admin can change password.' };
 };
 
 // --- REACT HOOKS ---

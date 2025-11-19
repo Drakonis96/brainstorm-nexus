@@ -21,6 +21,7 @@ const SessionView: React.FC<SessionViewProps> = ({ sessionId, role, onExit, back
   const [groupCount, setGroupCount] = useState(3);
   const [isGrouping, setIsGrouping] = useState(false);
   const [adminError, setAdminError] = useState<string | null>(null);
+  const [generateImages, setGenerateImages] = useState(false);
 
   // Student State
   const [inputWord, setInputWord] = useState('');
@@ -76,7 +77,7 @@ const SessionView: React.FC<SessionViewProps> = ({ sessionId, role, onExit, back
     setIsGrouping(true);
     
     try {
-      const groups = await groupWordsWithGemini(session.words, groupCount);
+      const groups = await groupWordsWithGemini(session.words, groupCount, generateImages);
       await updateSessionGroups(sessionId, groups);
     } catch (e) {
       console.error(e);
@@ -288,6 +289,24 @@ const SessionView: React.FC<SessionViewProps> = ({ sessionId, role, onExit, back
                       onChange={(e) => setGroupCount(Math.max(1, parseInt(e.target.value) || 1))}
                       className="w-12 bg-transparent font-bold text-center outline-none"
                     />
+                  </div>
+
+                  <div className="flex items-center bg-slate-100 rounded-lg px-3 py-2 border border-slate-200 gap-2">
+                    <span className="text-sm text-slate-600">Images:</span>
+                    <button
+                      type="button"
+                      onClick={() => setGenerateImages(!generateImages)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                        generateImages ? 'bg-indigo-600' : 'bg-slate-300'
+                      }`}
+                      title={generateImages ? 'Image generation enabled (slower)' : 'Image generation disabled (faster)'}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          generateImages ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
                   </div>
 
                   <button 

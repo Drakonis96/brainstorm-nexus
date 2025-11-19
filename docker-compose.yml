@@ -14,6 +14,9 @@ services:
       - NODE_ENV=${NODE_ENV:-production}
     env_file:
       - .env
+    volumes:
+      # Persistent storage for sessions and authentication data
+      - brainstorm-data:/app/backend/data
     restart: unless-stopped
     # Resource limits for production
     deploy:
@@ -24,3 +27,7 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
+
+volumes:
+  brainstorm-data:
+    name: brainstorm-persistent-data

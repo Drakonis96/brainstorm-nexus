@@ -15,7 +15,11 @@ COPY backend/ ./
 # ===== FRONTEND SETUP =====
 WORKDIR /app/frontend
 COPY package*.json ./
-RUN npm install
+# Fix for ETXTBSY error with esbuild in multi-arch builds
+# Use --ignore-scripts first, then rebuild
+RUN npm install --ignore-scripts && \
+    npm rebuild esbuild && \
+    npm run postinstall || true
 COPY . .
 RUN npm run build
 

@@ -2,8 +2,15 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Modality } from '@google/genai';
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -212,10 +219,79 @@ const parseCustomFormat = (text) => {
   return results;
 };
 
-// ===== SESSION MANAGEMENT =====
-// In-memory storage for sessions (shared across devices)
-const sessions = {};
+// ===== PERSISTENT STORAGE =====
+const DATA_DIR = path.join(__dirname, 'data');
+const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
+const AUTH_FILE = path.join(DATA_DIR, 'auth.json');
 
+// Ensure data directory exists
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  console.log('📁 Created data directory');
+}
+
+// Load sessions from file
+let sessions = {};
+if (fs.existsSync(SESSIONS_FILE)) {
+  try {
+    const data = fs.readFileSync(SESSIONS_FILE, 'utf8');
+    sessions = JSON.parse(data);
+    console.log(`📂 Loaded ${Object.keys(sessions).length} sessions from disk`);
+  } catch (error) {
+    console.error('Error loading sessions:', error);
+    sessions = {};
+  }
+} else {
+  console.log('📝 No existing sessions file, starting fresh');
+}
+
+// Save sessions to file
+const saveSessions = () => {
+  try {
+    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(sessions, null, 2));
+  } catch (error) {
+    console.error('Error saving sessions:', error);
+  }
+};
+
+// ===== AUTHENTICATION STORAGE =====
+// Load auth data from file
+let authData = { adminPasswordHash: null };
+if (fs.existsSync(AUTH_FILE)) {
+  try {
+    const data = fs.readFileSync(AUTH_FILE, 'utf8');
+    authData = JSON.parse(data);
+    console.log('🔐 Loaded authentication data from disk');
+  } catch (error) {
+    console.error('Error loading auth data:', error);
+    authData = { adminPasswordHash: null };
+  }
+}
+
+// Initialize default admin password if not set
+if (!authData.adminPasswordHash) {
+  const defaultPassword = 'admin123';
+  authData.adminPasswordHash = crypto.createHash('sha256').update(defaultPassword).digest('hex');
+  fs.writeFileSync(AUTH_FILE, JSON.stringify(authData, null, 2));
+  console.warn('⚠️  SECURITY: Default admin password is "admin123". Please change it immediately.');
+  console.warn('   Username: admin | Password: admin123');
+}
+
+// Save auth data to file
+const saveAuthData = () => {
+  try {
+    fs.writeFileSync(AUTH_FILE, JSON.stringify(authData, null, 2));
+  } catch (error) {
+    console.error('Error saving auth data:', error);
+  }
+};
+
+// Hash password
+const hashPassword = (password) => {
+  return crypto.createHash('sha256').update(password).digest('hex');
+};
+
+// ===== SESSION MANAGEMENT =====
 // Generate session code
 const generateSessionCode = () => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -247,6 +323,7 @@ app.post('/api/sessions', (req, res) => {
     };
 
     sessions[id] = newSession;
+    saveSessions(); // Persist to disk
     res.json(newSession);
   } catch (error) {
     console.error('Error creating session:', error);
@@ -289,6 +366,7 @@ app.delete('/api/session/:id', (req, res) => {
     const { id } = req.params;
     if (sessions[id]) {
       delete sessions[id];
+      saveSessions(); // Persist to disk
       res.json({ success: true });
     } else {
       res.status(404).json({ error: 'Session not found' });
@@ -318,6 +396,7 @@ app.post('/api/session/:id/word', (req, res) => {
     }
 
     sessions[id].words.push(word);
+    saveSessions(); // Persist to disk
     res.json(sessions[id]);
   } catch (error) {
     console.error('Error adding word:', error);
@@ -341,6 +420,7 @@ app.put('/api/session/:id/groups', (req, res) => {
 
     sessions[id].groups = groups;
     sessions[id].status = 'CLOSED';
+    saveSessions(); // Persist to disk
     res.json(sessions[id]);
   } catch (error) {
     console.error('Error updating groups:', error);
@@ -348,8 +428,79 @@ app.put('/api/session/:id/groups', (req, res) => {
   }
 });
 
+// ===== AUTHENTICATION ENDPOINTS =====
+
+// Login endpoint
+app.post('/api/auth/login', (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ success: false, message: 'Username and password are required' });
+    }
+
+    const cleanUser = username.trim().toLowerCase();
+    
+    // Only allow admin login
+    if (cleanUser === 'admin') {
+      const inputHash = hashPassword(password);
+      
+      if (inputHash === authData.adminPasswordHash) {
+        return res.json({ success: true, message: 'Login successful.' });
+      } else {
+        return res.status(401).json({ success: false, message: 'Incorrect password.' });
+      }
+    }
+
+    return res.status(401).json({ success: false, message: 'Only admin access is currently enabled.' });
+  } catch (error) {
+    console.error('Error during login:', error);
+    res.status(500).json({ success: false, message: 'Server error during login.' });
+  }
+});
+
+// Change password endpoint
+app.post('/api/auth/change-password', (req, res) => {
+  try {
+    const { username, oldPassword, newPassword } = req.body;
+    
+    if (!username || !oldPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'All fields are required' });
+    }
+
+    const cleanUser = username.trim().toLowerCase();
+    
+    if (cleanUser === 'admin') {
+      // Verify old password
+      const oldHash = hashPassword(oldPassword);
+      
+      if (oldHash !== authData.adminPasswordHash) {
+        return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
+      }
+
+      // Validate new password
+      if (newPassword.length < 6) {
+        return res.status(400).json({ success: false, message: 'New password must be at least 6 characters long.' });
+      }
+
+      // Set new password
+      authData.adminPasswordHash = hashPassword(newPassword);
+      saveAuthData();
+      
+      console.log('✅ Admin password changed successfully');
+      return res.json({ success: true, message: 'Password changed successfully.' });
+    }
+
+    return res.status(401).json({ success: false, message: 'Only admin can change password.' });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    res.status(500).json({ success: false, message: 'Server error changing password.' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Backend server running on http://localhost:${PORT}`);
   console.log(`📡 API endpoints available at http://localhost:${PORT}/api`);
+  console.log(`💾 Persistent data stored in: ${DATA_DIR}`);
 });
