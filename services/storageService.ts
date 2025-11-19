@@ -36,16 +36,13 @@ const hashPassword = async (password: string): Promise<string> => {
 const initializeAdminPassword = async (): Promise<void> => {
   const stored = localStorage.getItem(ADMIN_KEY);
   if (!stored) {
-    // SECURITY: Generate a random default password on first initialization
-    // User MUST change this on first login
-    const randomPassword = Array.from(crypto.getRandomValues(new Uint8Array(16)))
-      .map(b => b.toString(36))
-      .join('')
-      .substring(0, 12);
-    const defaultHash = await hashPassword(randomPassword);
+    // SECURITY: Default password for development
+    // IMPORTANT: Change this password after first login
+    const defaultPassword = 'admin123';
+    const defaultHash = await hashPassword(defaultPassword);
     localStorage.setItem(ADMIN_KEY, defaultHash);
-    console.warn('⚠️ SECURITY: Random admin password generated. Please change it immediately.');
-    console.warn('First login password:', randomPassword);
+    console.warn('⚠️ SECURITY: Default admin password is "admin123". Please change it immediately after login.');
+    console.warn('Username: admin | Password: admin123');
   }
 };
 
