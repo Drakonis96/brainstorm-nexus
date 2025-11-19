@@ -1,0 +1,5 @@
+{
+  "name": "Brainstorm AI Grouper",
+  "description": "A collaborative brainstorming tool where an admin creates sessions, students submit ideas, and AI groups them into categories.",
+  "requestFramePermissions": []
+}

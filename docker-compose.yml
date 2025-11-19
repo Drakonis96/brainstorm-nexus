@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: brainstorm-app
+    ports:
+      - "5016:5016"
+    environment:
+      # API_KEY loaded from .env file (see .env.production.example)
+      - API_KEY=${API_KEY}
+      - NODE_ENV=${NODE_ENV:-production}
+    env_file:
+      - .env
+    restart: unless-stopped
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
